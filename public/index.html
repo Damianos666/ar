@@ -4,763 +4,589 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <meta name="theme-color" content="#0a0a0f">
-<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>AR Time Portal · Przeszłość w teraźniejszości</title>
-
-<!-- Pure Camera API + Canvas — no AR.js/A-Frame DPDB errors -->
-
+<title>AR Time Portal</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;700;800&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@700;800&display=swap');
+  :root { --ink:#0a0a0f; --paper:#f5f0e8; --acid:#c8f533; --rust:#d4420a; --silver:#a8a8b8; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--ink); color:var(--paper); font-family:'Space Mono',monospace; overflow:hidden; height:100dvh; width:100vw; touch-action:none; }
 
-  :root {
-    --ink: #0a0a0f;
-    --paper: #f5f0e8;
-    --acid: #c8f533;
-    --rust: #d4420a;
-    --silver: #a8a8b8;
-    --glass: rgba(10,10,15,0.7);
-  }
+  /* ── SETUP ── */
+  #setup { position:fixed; inset:0; background:var(--ink); display:flex; flex-direction:column; align-items:center; justify-content:flex-start; z-index:100; padding:1.5rem; gap:1rem; overflow-y:auto; }
+  .logo { font-family:'Syne',sans-serif; font-size:1.6rem; font-weight:800; color:var(--acid); letter-spacing:-.02em; margin-top:.5rem; }
+  .logo span { color:var(--paper); }
+  .subtitle { font-size:.65rem; letter-spacing:.15em; text-transform:uppercase; color:var(--silver); text-align:center; }
+  .card { width:100%; max-width:440px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); border-radius:8px; padding:1.1rem; display:flex; flex-direction:column; gap:.8rem; }
+  .card-title { font-family:'Syne',sans-serif; font-size:.75rem; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--acid); }
+  #upload-zone { border:2px dashed rgba(200,245,51,.3); border-radius:6px; padding:1.2rem; text-align:center; cursor:pointer; position:relative; transition:all .2s; }
+  #upload-zone:hover { border-color:var(--acid); background:rgba(200,245,51,.04); }
+  #upload-zone input { position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; height:100%; }
+  #upload-zone .icon { font-size:1.8rem; margin-bottom:.4rem; }
+  #upload-zone p { font-size:.72rem; color:var(--silver); }
+  #upload-zone p strong { color:var(--paper); }
+  #thumb { display:none; width:100%; height:140px; object-fit:cover; border-radius:6px; border:2px solid var(--acid); }
+  .field { display:flex; flex-direction:column; gap:.3rem; }
+  .field label { font-size:.62rem; letter-spacing:.1em; text-transform:uppercase; color:var(--silver); }
+  .field input { background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.15); color:var(--paper); font-family:'Space Mono',monospace; font-size:.82rem; padding:.55rem .7rem; border-radius:5px; outline:none; transition:border-color .2s; width:100%; }
+  .field input:focus { border-color:var(--acid); }
+  .field-row { display:grid; grid-template-columns:1fr 1fr; gap:.7rem; }
+  .gps-btn { background:rgba(200,245,51,.1); border:1px solid rgba(200,245,51,.3); color:var(--acid); font-family:'Space Mono',monospace; font-size:.72rem; padding:.5rem .75rem; border-radius:5px; cursor:pointer; transition:all .2s; text-align:center; }
+  .gps-btn:hover { background:rgba(200,245,51,.18); }
+  .hint { font-size:.65rem; color:var(--silver); line-height:1.6; padding:.65rem; background:rgba(255,255,255,.03); border-radius:5px; border-left:2px solid var(--acid); }
+  #launch-btn { width:100%; max-width:440px; background:var(--acid); color:var(--ink); font-family:'Syne',sans-serif; font-weight:700; font-size:1rem; border:none; padding:.9rem; border-radius:6px; cursor:pointer; transition:all .2s; margin-bottom:1.5rem; }
+  #launch-btn:disabled { opacity:.3; cursor:not-allowed; }
+  #launch-btn:not(:disabled):hover { transform:translateY(-2px); box-shadow:0 8px 30px rgba(200,245,51,.3); }
 
-  * { margin: 0; padding: 0; box-sizing: border-box; }
+  /* ── AR ── */
+  #ar-view { display:none; position:fixed; inset:0; z-index:10; }
+  #cam { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+  #ar-canvas { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+  .scanlines { position:absolute; inset:0; background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.04) 2px,rgba(0,0,0,.04) 4px); pointer-events:none; z-index:2; }
+  #hud { position:absolute; inset:0; z-index:5; pointer-events:none; }
+  .hud-top { display:flex; justify-content:space-between; align-items:flex-start; padding:.8rem 1rem; background:linear-gradient(to bottom,rgba(0,0,0,.72) 0%,transparent 100%); }
+  .hud-logo { font-family:'Syne',sans-serif; font-weight:800; font-size:.85rem; color:var(--acid); }
+  .hud-info { display:flex; flex-direction:column; align-items:flex-end; gap:.2rem; }
+  .info-pill { background:rgba(0,0,0,.6); border:1px solid rgba(255,255,255,.15); padding:.18rem .5rem; border-radius:20px; font-size:.58rem; letter-spacing:.06em; color:var(--silver); }
+  .info-pill.active { border-color:var(--acid); color:var(--acid); }
+  .year-stamp { position:absolute; top:4rem; left:1rem; background:var(--rust); color:var(--paper); font-family:'Syne',sans-serif; font-weight:700; font-size:.85rem; padding:.28rem .75rem; border-radius:3px; }
 
-  body {
-    background: var(--ink);
-    color: var(--paper);
-    font-family: 'Space Mono', monospace;
-    overflow: hidden;
-    height: 100dvh;
-    width: 100vw;
-  }
+  /* Crosshair */
+  .crosshair { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:36px; height:36px; opacity:.35; }
+  .crosshair::before,.crosshair::after { content:''; position:absolute; background:var(--acid); }
+  .crosshair::before { width:1px; height:100%; left:50%; top:0; }
+  .crosshair::after { height:1px; width:100%; top:50%; left:0; }
 
-  /* ─── LANDING SCREEN ─── */
-  #landing {
-    position: fixed; inset: 0;
-    background: var(--ink);
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    z-index: 100;
-    padding: 2rem;
-    gap: 0;
-  }
+  /* Aim ring */
+  #aim-ring { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:80px; height:80px; border-radius:50%; border:2px solid transparent; transition:border-color .2s,box-shadow .2s; pointer-events:none; }
+  #aim-ring.on-target { border-color:var(--acid); box-shadow:0 0 22px rgba(200,245,51,.5); }
 
-  .logo-mark {
-    width: 80px; height: 80px;
-    position: relative;
-    margin-bottom: 2rem;
+  /* Calibration overlay */
+  #calib-panel {
+    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+    background:rgba(10,10,15,.92); backdrop-filter:blur(12px);
+    border:1px solid rgba(200,245,51,.4); border-radius:10px;
+    padding:1.5rem; width:calc(100% - 2rem); max-width:340px;
+    display:none; flex-direction:column; gap:1rem; pointer-events:all;
+    z-index:20;
   }
-  .logo-mark svg { width: 100%; height: 100%; }
+  #calib-panel h3 { font-family:'Syne',sans-serif; font-size:1rem; color:var(--acid); }
+  #calib-panel p { font-size:.7rem; color:var(--silver); line-height:1.6; }
+  .calib-row { display:flex; align-items:center; gap:.75rem; }
+  .calib-lbl { font-size:.62rem; color:var(--silver); min-width:70px; text-transform:uppercase; letter-spacing:.08em; }
+  .calib-val { font-size:.9rem; color:var(--acid); font-weight:700; min-width:50px; }
+  input[type=range] { flex:1; -webkit-appearance:none; height:3px; background:rgba(255,255,255,.2); border-radius:2px; outline:none; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:20px; height:20px; border-radius:50%; background:var(--acid); cursor:pointer; }
+  .calib-close { background:var(--acid); color:var(--ink); font-family:'Syne',sans-serif; font-weight:700; font-size:.85rem; border:none; padding:.65rem; border-radius:5px; cursor:pointer; }
 
-  .logo-ring {
-    stroke-dasharray: 220;
-    stroke-dashoffset: 220;
-    animation: drawRing 1.4s cubic-bezier(.4,0,.2,1) .2s forwards;
-  }
-  @keyframes drawRing {
-    to { stroke-dashoffset: 0; }
-  }
+  /* Bottom controls */
+  .hud-bottom { position:absolute; bottom:0; left:0; right:0; padding:.9rem 1rem 1.8rem; background:linear-gradient(to top,rgba(0,0,0,.82) 0%,transparent 100%); display:flex; flex-direction:column; gap:.65rem; pointer-events:all; }
+  .slider-row { display:flex; align-items:center; gap:.7rem; }
+  .slider-lbl { font-size:.58rem; letter-spacing:.08em; text-transform:uppercase; color:var(--silver); min-width:75px; }
+  .btn-row { display:flex; gap:.55rem; }
+  .hbtn { flex:1; background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.15); color:var(--paper); font-family:'Space Mono',monospace; font-size:.62rem; letter-spacing:.04em; padding:.65rem .4rem; border-radius:5px; cursor:pointer; text-transform:uppercase; transition:all .2s; }
+  .hbtn:hover { background:rgba(255,255,255,.18); }
+  .hbtn.red { border-color:rgba(212,66,10,.5); color:#f87557; }
+  .hbtn.red:hover { background:rgba(212,66,10,.2); }
+  .hbtn.yellow { border-color:rgba(200,245,51,.4); color:var(--acid); }
+  .hbtn.yellow:hover { background:rgba(200,245,51,.12); }
 
-  h1 {
-    font-family: 'Syne', sans-serif;
-    font-size: clamp(2rem, 8vw, 3.5rem);
-    font-weight: 800;
-    letter-spacing: -0.03em;
-    line-height: 1;
-    text-align: center;
-    margin-bottom: .5rem;
-  }
-  h1 em {
-    font-style: normal;
-    color: var(--acid);
-  }
-
-  .tagline {
-    font-size: .75rem;
-    letter-spacing: .18em;
-    text-transform: uppercase;
-    color: var(--silver);
-    margin-bottom: 3rem;
-  }
-
-  /* Upload zone */
-  #upload-zone {
-    width: 100%;
-    max-width: 420px;
-    border: 2px dashed rgba(200,245,51,.35);
-    border-radius: 4px;
-    padding: 2.5rem 1.5rem;
-    text-align: center;
-    cursor: pointer;
-    transition: border-color .2s, background .2s;
-    position: relative;
-    margin-bottom: 1.5rem;
-  }
-  #upload-zone:hover, #upload-zone.dragover {
-    border-color: var(--acid);
-    background: rgba(200,245,51,.04);
-  }
-  #upload-zone input[type=file] {
-    position: absolute; inset: 0;
-    opacity: 0; cursor: pointer;
-    width: 100%; height: 100%;
-  }
-  .upload-icon { font-size: 2rem; margin-bottom: .75rem; }
-  .upload-label {
-    font-size: .8rem;
-    color: var(--silver);
-    line-height: 1.6;
-  }
-  .upload-label strong { color: var(--acid); }
-
-  #preview-thumb {
-    display: none;
-    width: 100%;
-    max-width: 420px;
-    height: 180px;
-    object-fit: cover;
-    border-radius: 4px;
-    margin-bottom: 1.5rem;
-    border: 2px solid var(--acid);
-  }
-
-  /* Meta fields */
-  .meta-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: .75rem;
-    width: 100%;
-    max-width: 420px;
-    margin-bottom: 1.5rem;
-  }
-  .meta-field {
-    display: flex; flex-direction: column; gap: .3rem;
-  }
-  .meta-field label {
-    font-size: .65rem;
-    letter-spacing: .12em;
-    text-transform: uppercase;
-    color: var(--silver);
-  }
-  .meta-field input {
-    background: rgba(255,255,255,.06);
-    border: 1px solid rgba(255,255,255,.15);
-    color: var(--paper);
-    font-family: 'Space Mono', monospace;
-    font-size: .8rem;
-    padding: .5rem .6rem;
-    border-radius: 3px;
-    outline: none;
-    transition: border-color .2s;
-  }
-  .meta-field input:focus { border-color: var(--acid); }
-
-  #start-btn {
-    width: 100%;
-    max-width: 420px;
-    background: var(--acid);
-    color: var(--ink);
-    font-family: 'Syne', sans-serif;
-    font-weight: 700;
-    font-size: 1rem;
-    letter-spacing: .05em;
-    border: none;
-    padding: 1rem;
-    cursor: pointer;
-    border-radius: 3px;
-    transition: transform .15s, box-shadow .15s;
-    position: relative;
-    overflow: hidden;
-  }
-  #start-btn:disabled {
-    opacity: .35;
-    cursor: not-allowed;
-  }
-  #start-btn:not(:disabled):hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 30px rgba(200,245,51,.3);
-  }
-
-  /* AR.js/A-Frame removed — pure Canvas pipeline */
-
-  /* ─── HUD ─── */
-  #hud {
-    display: none;
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-    z-index: 50;
-  }
-
-  /* Top bar */
-  .hud-top {
-    position: absolute; top: 0; left: 0; right: 0;
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 1rem 1.25rem;
-    background: linear-gradient(to bottom, rgba(10,10,15,.8), transparent);
-  }
-  .hud-logo {
-    font-family: 'Syne', sans-serif;
-    font-weight: 800;
-    font-size: .9rem;
-    letter-spacing: -.01em;
-    color: var(--acid);
-  }
-  .hud-status {
-    display: flex; align-items: center; gap: .5rem;
-    font-size: .65rem;
-    letter-spacing: .1em;
-    text-transform: uppercase;
-    color: var(--silver);
-  }
-  .pulse {
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    background: var(--acid);
-    animation: pulse 1.8s ease infinite;
-  }
-  @keyframes pulse {
-    0%,100% { opacity: 1; transform: scale(1); }
-    50% { opacity: .4; transform: scale(.7); }
-  }
-
-  /* Bottom panel */
-  .hud-bottom {
-    position: absolute; bottom: 0; left: 0; right: 0;
-    padding: 1.5rem 1.25rem 2rem;
-    background: linear-gradient(to top, rgba(10,10,15,.85), transparent);
-    display: flex; flex-direction: column; gap: 1rem;
-    pointer-events: all;
-  }
-
-  /* Opacity slider */
-  .slider-row {
-    display: flex; align-items: center; gap: 1rem;
-  }
-  .slider-label {
-    font-size: .65rem;
-    letter-spacing: .1em;
-    text-transform: uppercase;
-    color: var(--silver);
-    white-space: nowrap;
-    min-width: 90px;
-  }
-  #opacity-slider {
-    flex: 1;
-    -webkit-appearance: none;
-    height: 3px;
-    background: rgba(255,255,255,.2);
-    border-radius: 2px;
-    outline: none;
-  }
-  #opacity-slider::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 18px; height: 18px;
-    border-radius: 50%;
-    background: var(--acid);
-    cursor: pointer;
-  }
-
-  /* Control buttons */
-  .ctrl-row {
-    display: flex; gap: .75rem;
-  }
-  .ctrl-btn {
-    flex: 1;
-    background: rgba(255,255,255,.08);
-    border: 1px solid rgba(255,255,255,.15);
-    color: var(--paper);
-    font-family: 'Space Mono', monospace;
-    font-size: .7rem;
-    letter-spacing: .06em;
-    padding: .65rem .5rem;
-    cursor: pointer;
-    border-radius: 3px;
-    transition: background .2s, border-color .2s;
-    text-transform: uppercase;
-  }
-  .ctrl-btn:hover { background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.3); }
-  .ctrl-btn.danger { border-color: rgba(212,66,10,.4); color: #f87557; }
-  .ctrl-btn.danger:hover { background: rgba(212,66,10,.15); }
-
-  /* Compass indicator */
-  .compass {
-    position: absolute;
-    top: 50%;
-    right: 1.25rem;
-    transform: translateY(-50%);
-    display: flex; flex-direction: column;
-    align-items: center; gap: .4rem;
-  }
-  .compass-ring {
-    width: 42px; height: 42px;
-    border: 2px solid rgba(200,245,51,.35);
-    border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    position: relative;
-  }
-  .compass-needle {
-    width: 2px; height: 16px;
-    background: linear-gradient(to bottom, var(--acid) 50%, var(--rust) 50%);
-    border-radius: 1px;
-    transform-origin: center center;
-    transition: transform .5s ease;
-  }
-  .compass-label {
-    font-size: .55rem;
-    letter-spacing: .1em;
-    text-transform: uppercase;
-    color: var(--silver);
-  }
-
-  /* Year badge */
-  .year-badge {
-    position: absolute;
-    top: 4rem; left: 1.25rem;
-    background: var(--rust);
-    color: var(--paper);
-    font-family: 'Syne', sans-serif;
-    font-weight: 700;
-    font-size: .85rem;
-    padding: .3rem .75rem;
-    border-radius: 2px;
-    letter-spacing: .04em;
-  }
-
-  /* GPS coords */
-  .coords {
-    position: absolute;
-    bottom: 9rem; left: 1.25rem;
-    font-size: .6rem;
-    color: var(--silver);
-    letter-spacing: .06em;
-    line-height: 1.7;
-  }
-
-
-  #fallback-preview {
-    display: none;
-    position: fixed; inset: 0;
-    background: #111;
-    z-index: 5;
-  }
-  #fallback-preview video {
-    width: 100%; height: 100%;
-    object-fit: cover;
-  }
-  #fallback-overlay {
-    position: absolute; inset: 0;
-  }
+  /* Permissions */
+  #perm-screen { display:none; position:fixed; inset:0; background:var(--ink); z-index:200; flex-direction:column; align-items:center; justify-content:center; gap:1.5rem; padding:2rem; text-align:center; }
+  #perm-screen .big { font-size:3rem; }
+  #perm-screen h2 { font-family:'Syne',sans-serif; font-size:1.2rem; }
+  #perm-screen p { font-size:.78rem; color:var(--silver); line-height:1.7; max-width:320px; }
+  #perm-btn { background:var(--acid); color:var(--ink); font-family:'Syne',sans-serif; font-weight:700; font-size:1rem; border:none; padding:.9rem 2rem; border-radius:6px; cursor:pointer; }
 
   /* Toast */
-  #toast {
-    position: fixed;
-    bottom: 50%;
-    left: 50%; transform: translateX(-50%);
-    background: var(--glass);
-    backdrop-filter: blur(12px);
-    border: 1px solid rgba(255,255,255,.15);
-    color: var(--paper);
-    font-size: .75rem;
-    letter-spacing: .06em;
-    padding: .65rem 1.25rem;
-    border-radius: 3px;
-    z-index: 200;
-    opacity: 0;
-    transition: opacity .3s;
-    pointer-events: none;
-    white-space: nowrap;
-    text-align: center;
-  }
-  #toast.show { opacity: 1; }
-
-  /* Scan line effect on AR overlay */
-  .scanlines {
-    position: fixed; inset: 0;
-    background: repeating-linear-gradient(
-      0deg,
-      transparent,
-      transparent 2px,
-      rgba(0,0,0,.06) 2px,
-      rgba(0,0,0,.06) 4px
-    );
-    pointer-events: none;
-    z-index: 20;
-    opacity: .6;
-  }
-
-  /* Orientation hint */
-  #orientation-hint {
-    display: none;
-    position: fixed; inset: 0;
-    background: var(--ink);
-    z-index: 300;
-    align-items: center; justify-content: center;
-    flex-direction: column; gap: 1rem;
-    text-align: center; padding: 2rem;
-  }
-  #orientation-hint .icon { font-size: 3rem; }
-  #orientation-hint p { font-size: .85rem; color: var(--silver); line-height: 1.6; }
+  #toast { position:fixed; bottom:45%; left:50%; transform:translateX(-50%); background:rgba(10,10,15,.88); backdrop-filter:blur(10px); border:1px solid rgba(255,255,255,.15); color:var(--paper); font-size:.72rem; padding:.6rem 1.2rem; border-radius:5px; z-index:300; opacity:0; transition:opacity .3s; pointer-events:none; white-space:nowrap; }
+  #toast.show { opacity:1; }
 </style>
 </head>
 <body>
 
-<!-- ─── LANDING ─── -->
-<div id="landing">
-  <div class="logo-mark">
-    <svg viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle class="logo-ring" cx="40" cy="40" r="35" stroke="#c8f533" stroke-width="2"/>
-      <circle cx="40" cy="40" r="22" stroke="rgba(200,245,51,.3)" stroke-width="1.5" stroke-dasharray="6 4"/>
-      <line x1="40" y1="8" x2="40" y2="20" stroke="#c8f533" stroke-width="2" stroke-linecap="round"/>
-      <line x1="40" y1="60" x2="40" y2="72" stroke="#c8f533" stroke-width="2" stroke-linecap="round"/>
-      <line x1="8" y1="40" x2="20" y2="40" stroke="#c8f533" stroke-width="2" stroke-linecap="round"/>
-      <line x1="60" y1="40" x2="72" y2="40" stroke="#c8f533" stroke-width="2" stroke-linecap="round"/>
-      <circle cx="40" cy="40" r="5" fill="#c8f533"/>
-      <circle cx="40" cy="40" r="9" stroke="rgba(200,245,51,.5)" stroke-width="1"/>
-    </svg>
-  </div>
+<!-- SETUP -->
+<div id="setup">
+  <div class="logo">AR<span>·</span>Time<span>·</span>Portal</div>
+  <p class="subtitle">Przeszłość zakotwiczona w przestrzeni</p>
 
-  <h1>AR<br><em>Time</em><br>Portal</h1>
-  <p class="tagline">Przeszłość w teraźniejszości</p>
-
-  <div id="upload-zone">
-    <input type="file" id="photo-input" accept="image/*">
-    <div class="upload-icon">📷</div>
-    <p class="upload-label">
-      <strong>Wybierz zdjęcie z przeszłości</strong><br>
-      PNG, JPG, WebP · dowolny rok
-    </p>
-  </div>
-
-  <img id="preview-thumb" alt="Podgląd">
-
-  <div class="meta-row">
-    <div class="meta-field">
+  <div class="card">
+    <div class="card-title">📷 Historyczne zdjęcie</div>
+    <div id="upload-zone">
+      <input type="file" id="file-input" accept="image/*">
+      <div class="icon">🏛️</div>
+      <p><strong>Wybierz zdjęcie z przeszłości</strong><br>PNG · JPG · WebP</p>
+    </div>
+    <img id="thumb" alt="">
+    <div class="field">
       <label>Rok zdjęcia</label>
-      <input type="number" id="photo-year" placeholder="np. 1985" min="1800" max="2024">
-    </div>
-    <div class="meta-field">
-      <label>Przesunięcie nakładki °</label>
-      <input type="number" id="photo-bearing" placeholder="0–360" min="0" max="360" value="0">
+      <input type="number" id="year" placeholder="np. 1945" min="1800" max="2024">
     </div>
   </div>
 
-  <button id="start-btn" disabled>Uruchom AR Portal →</button>
+  <div class="card">
+    <div class="card-title">📍 Lokalizacja obiektu</div>
+    <p class="hint">
+      GPS miejsca widocznego na zdjęciu. Skopiuj z Google Maps — kliknij prawym na mapie → "Co tu jest?".
+    </p>
+    <button class="gps-btn" id="use-current-gps">📡 Użyj mojej aktualnej pozycji</button>
+    <div class="field-row">
+      <div class="field">
+        <label>Szerokość (lat)</label>
+        <input type="number" id="target-lat" placeholder="52.23000" step="0.00001">
+      </div>
+      <div class="field">
+        <label>Długość (lon)</label>
+        <input type="number" id="target-lon" placeholder="21.01000" step="0.00001">
+      </div>
+    </div>
+    <div class="field">
+      <label>Kierunek zdjęcia — azymut ° (opcjonalnie)</label>
+      <input type="number" id="target-bearing" placeholder="0=Płn · 90=Wsch · 180=Płd" min="0" max="360" value="0">
+    </div>
+  </div>
+
+  <button id="launch-btn" disabled>🚀 Uruchom AR Portal</button>
 </div>
 
-<!-- ─── AR HUD ─── -->
-<div id="hud">
+<!-- iOS permissions -->
+<div id="perm-screen">
+  <div class="big">🧭</div>
+  <h2>Potrzebny dostęp do kompasu</h2>
+  <p>iOS wymaga ręcznej zgody na czytanie orientacji urządzenia.</p>
+  <button id="perm-btn">Zezwól na dostęp do sensora</button>
+</div>
+
+<!-- AR VIEW -->
+<div id="ar-view">
+  <video id="cam" autoplay playsinline muted></video>
+  <canvas id="ar-canvas"></canvas>
   <div class="scanlines"></div>
 
-  <div class="hud-top">
-    <span class="hud-logo">AR·PORTAL</span>
-    <div class="hud-status">
-      <div class="pulse"></div>
-      <span id="status-text">inicjalizacja…</span>
+  <div id="hud">
+    <div class="hud-top">
+      <span class="hud-logo">AR·PORTAL</span>
+      <div class="hud-info">
+        <div class="info-pill" id="pill-gps">GPS: —</div>
+        <div class="info-pill" id="pill-compass">Kompas: —</div>
+        <div class="info-pill" id="pill-dist">Dystans: —</div>
+        <div class="info-pill" id="pill-delta">Δ: —</div>
+      </div>
     </div>
-  </div>
 
-  <div class="year-badge" id="year-badge">????</div>
+    <div class="year-stamp" id="year-stamp">????</div>
+    <div class="crosshair"></div>
+    <div id="aim-ring"></div>
 
-  <div class="compass">
-    <div class="compass-ring">
-      <div class="compass-needle" id="compass-needle"></div>
+    <!-- Calibration panel -->
+    <div id="calib-panel">
+      <h3>🎯 Kalibracja</h3>
+      <p>Dostosuj jeśli obraz jest przesunięty. Stań naprzeciwko celu, wyceluj crosshair i przesuń suwaki tak żeby obraz trafił w środek.</p>
+      <div class="calib-row">
+        <span class="calib-lbl">FOV horiz.</span>
+        <input type="range" id="cal-fov-h" min="30" max="100" value="65">
+        <span class="calib-val" id="cal-fov-h-val">65°</span>
+      </div>
+      <div class="calib-row">
+        <span class="calib-lbl">FOV vert.</span>
+        <input type="range" id="cal-fov-v" min="20" max="80" value="50">
+        <span class="calib-val" id="cal-fov-v-val">50°</span>
+      </div>
+      <div class="calib-row">
+        <span class="calib-lbl">Korekta N/S</span>
+        <input type="range" id="cal-compass" min="-30" max="30" value="0">
+        <span class="calib-val" id="cal-compass-val">0°</span>
+      </div>
+      <div class="calib-row">
+        <span class="calib-lbl">Kąt kamery</span>
+        <input type="range" id="cal-pitch" min="50" max="90" value="70">
+        <span class="calib-val" id="cal-pitch-val">70°</span>
+      </div>
+      <button class="calib-close" id="calib-close">✓ Gotowe</button>
     </div>
-    <span class="compass-label">azymut</span>
-  </div>
 
-  <div class="coords" id="coords-display">
-    GPS: oczekiwanie…
-  </div>
-
-  <div class="hud-bottom">
-    <div class="slider-row">
-      <span class="slider-label">Przezroczystość</span>
-      <input type="range" id="opacity-slider" min="0" max="100" value="70">
-    </div>
-    <div class="ctrl-row">
-      <button class="ctrl-btn" id="toggle-btn">⏸ Wstrzymaj</button>
-      <button class="ctrl-btn" id="screenshot-btn">📸 Zapis</button>
-      <button class="ctrl-btn danger" id="back-btn">✕ Wróć</button>
+    <div class="hud-bottom">
+      <div class="slider-row">
+        <span class="slider-lbl">Przezroczystość</span>
+        <input type="range" id="opacity-sl" min="0" max="100" value="75">
+      </div>
+      <div class="slider-row">
+        <span class="slider-lbl">Rozmiar</span>
+        <input type="range" id="size-sl" min="20" max="130" value="70">
+      </div>
+      <div class="btn-row">
+        <button class="hbtn yellow" id="calib-btn">🎯 Kalibruj</button>
+        <button class="hbtn" id="freeze-btn">⏸ Zamróź</button>
+        <button class="hbtn" id="snap-btn">📸</button>
+        <button class="hbtn red" id="exit-btn">✕</button>
+      </div>
     </div>
   </div>
 </div>
 
-<!-- ─── CAMERA + CANVAS OVERLAY (PWA fallback) ─── -->
-<div id="fallback-preview">
-  <video id="cam-video" autoplay playsinline muted></video>
-  <canvas id="fallback-overlay"></canvas>
-</div>
-
-<!-- ─── TOAST ─── -->
 <div id="toast"></div>
 
-<!-- ─── ORIENTATION HINT ─── -->
-<div id="orientation-hint">
-  <div class="icon">📱</div>
-  <p>Obróć urządzenie do <strong>orientacji poziomej</strong> dla najlepszego efektu AR.</p>
-</div>
-
 <script>
-// ═══════════════════════════════════════════════════════
-//  AR TIME PORTAL · Pure Camera API + Canvas
-//  No AR.js / A-Frame → zero DPDB / device errors
-// ═══════════════════════════════════════════════════════
+// ══════════════════════════════════════════════
+//  AR TIME PORTAL v3 — precision engine
+//  Fixes: pitch direction, smoothing, FOV calib
+// ══════════════════════════════════════════════
 
 const $ = id => document.getElementById(id);
 
-let photoDataURL = null;
-let stream       = null;
-let animFrame    = null;
-let animPaused   = false;
-let overlayOpacity = 0.70;
-let deviceHeading  = 0;
-let userBearing    = 0;
-let overlayImg     = new Image();
+// ── State ──────────────────────────────────────
+const S = {
+  photoImg: new Image(),
+  year: '????',
+  targetLat: null, targetLon: null,
+  targetBearing: 0,
 
-// ─── Photo upload ───────────────────────────────────────
-$('photo-input').addEventListener('change', e => {
+  // Live sensor (smoothed)
+  userLat: null, userLon: null,
+  heading: 0,   // smoothed compass azimuth
+  pitch: 70,    // smoothed beta (phone tilt)
+  roll: 0,      // gamma
+
+  // Raw sensor buffers for smoothing
+  _headingBuf: [],
+  _pitchBuf: [],
+
+  // Calibration
+  fovH: 65,       // horizontal FOV degrees
+  fovV: 50,       // vertical FOV degrees
+  compassOffset: 0, // manual compass correction
+  pitchNeutral: 70, // beta angle when holding phone "forward"
+
+  // Render
+  opacity: 0.75,
+  sizeFactor: 0.70,
+  frozen: false,
+  stream: null,
+  animFrame: null,
+};
+
+// ── Smoothing ───────────────────────────────────
+// Circular mean for angles (handles 0/360 wraparound)
+function circularMean(angles) {
+  let sx = 0, sy = 0;
+  for (const a of angles) {
+    sx += Math.cos(a * Math.PI / 180);
+    sy += Math.sin(a * Math.PI / 180);
+  }
+  return ((Math.atan2(sy / angles.length, sx / angles.length) * 180 / Math.PI) + 360) % 360;
+}
+
+function smoothAngle(buf, val, size = 8) {
+  buf.push(val);
+  if (buf.length > size) buf.shift();
+  return circularMean(buf);
+}
+
+function smoothLinear(buf, val, size = 6) {
+  buf.push(val);
+  if (buf.length > size) buf.shift();
+  return buf.reduce((a, b) => a + b, 0) / buf.length;
+}
+
+// ── Geo math ────────────────────────────────────
+function distanceTo(lat1, lon1, lat2, lon2) {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function bearingTo(lat1, lon1, lat2, lon2) {
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const y = Math.sin(dLon) * Math.cos(lat2 * Math.PI / 180);
+  const x = Math.cos(lat1*Math.PI/180)*Math.sin(lat2*Math.PI/180) - Math.sin(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.cos(dLon);
+  return ((Math.atan2(y, x) * 180 / Math.PI) + 360) % 360;
+}
+
+// Signed angle difference -180..+180
+function angleDiff(target, current) {
+  return ((target - current + 540) % 360) - 180;
+}
+
+// ── Toast ────────────────────────────────────────
+function toast(msg, ms = 2800) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._tid);
+  t._tid = setTimeout(() => t.classList.remove('show'), ms);
+}
+
+// ── Setup UI ─────────────────────────────────────
+$('file-input').addEventListener('change', e => {
   const file = e.target.files[0];
   if (!file) return;
   const reader = new FileReader();
   reader.onload = ev => {
-    photoDataURL = ev.target.result;
-    $('preview-thumb').src = photoDataURL;
-    $('preview-thumb').style.display = 'block';
+    S.photoImg = new Image();
+    S.photoImg.src = ev.target.result;
+    $('thumb').src = ev.target.result;
+    $('thumb').style.display = 'block';
     $('upload-zone').style.display = 'none';
-    $('start-btn').disabled = false;
-    overlayImg = new Image();
-    overlayImg.src = photoDataURL;
+    checkReady();
   };
   reader.readAsDataURL(file);
 });
 
-// drag & drop
-const zone = $('upload-zone');
-zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
-zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
-zone.addEventListener('drop', e => {
-  e.preventDefault(); zone.classList.remove('dragover');
-  const file = e.dataTransfer.files[0];
-  if (file?.type.startsWith('image/')) {
-    const dt = new DataTransfer(); dt.items.add(file);
-    $('photo-input').files = dt.files;
-    $('photo-input').dispatchEvent(new Event('change'));
-  }
+function checkReady() {
+  $('launch-btn').disabled = !(S.photoImg.src && S.targetLat !== null && S.targetLon !== null);
+}
+
+$('use-current-gps').addEventListener('click', () => {
+  if (!navigator.geolocation) { toast('GPS niedostępny'); return; }
+  toast('Pobieram pozycję…');
+  navigator.geolocation.getCurrentPosition(pos => {
+    $('target-lat').value = pos.coords.latitude.toFixed(6);
+    $('target-lon').value = pos.coords.longitude.toFixed(6);
+    S.targetLat = pos.coords.latitude;
+    S.targetLon = pos.coords.longitude;
+    toast(`📍 ${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`);
+    checkReady();
+  }, () => toast('Błąd GPS'), { enableHighAccuracy: true });
 });
 
-// ─── Toast ─────────────────────────────────────────────
-function toast(msg, ms = 2400) {
-  const t = $('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  clearTimeout(t._t);
-  t._t = setTimeout(() => t.classList.remove('show'), ms);
-}
+$('target-lat').addEventListener('input', e => { S.targetLat = parseFloat(e.target.value) || null; checkReady(); });
+$('target-lon').addEventListener('input', e => { S.targetLon = parseFloat(e.target.value) || null; checkReady(); });
 
-// ─── GPS ───────────────────────────────────────────────
-function startGPS() {
-  if (!navigator.geolocation) {
-    $('coords-display').textContent = 'GPS: niedostępny';
-    return;
-  }
-  navigator.geolocation.watchPosition(
-    pos => {
-      const { latitude: lat, longitude: lon, accuracy: acc } = pos.coords;
-      $('coords-display').textContent =
-        `GPS: ${lat.toFixed(5)}°N  ${lon.toFixed(5)}°E\nDokładność: ~${Math.round(acc)}m`;
-      $('status-text').textContent = 'GPS aktywny';
-    },
-    () => { $('status-text').textContent = 'GPS niedostępny'; },
-    { enableHighAccuracy: true, maximumAge: 5000 }
-  );
-}
-
-// ─── Compass (DeviceOrientation) ───────────────────────
-function startCompass() {
-  function onOrientation(e) {
-    // webkitCompassHeading = iOS; alpha fallback = Android
-    const heading = e.webkitCompassHeading != null
-      ? e.webkitCompassHeading
-      : e.alpha != null ? (360 - e.alpha) % 360 : null;
-    if (heading == null) return;
-    deviceHeading = heading;
-    $('compass-needle').style.transform = `rotate(${heading}deg)`;
-  }
+// ── Launch ────────────────────────────────────────
+$('launch-btn').addEventListener('click', () => {
+  S.year = $('year').value || '????';
+  S.targetBearing = parseFloat($('target-bearing').value) || 0;
 
   if (typeof DeviceOrientationEvent?.requestPermission === 'function') {
-    // iOS 13+ — must be triggered by user gesture; we call after button click
-    DeviceOrientationEvent.requestPermission()
-      .then(p => { if (p === 'granted') window.addEventListener('deviceorientation', onOrientation); })
-      .catch(() => {});
-  } else {
-    window.addEventListener('deviceorientation', onOrientation);
+    $('perm-screen').style.display = 'flex';
+    return;
   }
-}
+  startAR();
+});
 
-// ─── Heading → x-shift for overlay ────────────────────
-function headingShift() {
-  let delta = (deviceHeading - userBearing + 360) % 360;
-  if (delta > 180) delta -= 360;          // -180..+180
-  return Math.max(-1, Math.min(1, delta / 90)); // clamp -1..1
-}
+$('perm-btn').addEventListener('click', async () => {
+  try {
+    const res = await DeviceOrientationEvent.requestPermission();
+    $('perm-screen').style.display = 'none';
+    if (res === 'granted') startAR();
+    else toast('Odmówiono dostępu do kompasu');
+  } catch { $('perm-screen').style.display = 'none'; startAR(); }
+});
 
-// ─── Corner markers ────────────────────────────────────
-function drawCorners(ctx, x, y, w, h) {
-  const len = 20;
-  ctx.save();
-  ctx.strokeStyle = '#c8f533';
-  ctx.lineWidth = 2;
-  ctx.globalAlpha = 0.85;
-  [[x,y,1,1],[x+w,y,-1,1],[x,y+h,1,-1],[x+w,y+h,-1,-1]].forEach(([cx,cy,dx,dy]) => {
-    ctx.beginPath();
-    ctx.moveTo(cx + dx*len, cy); ctx.lineTo(cx, cy); ctx.lineTo(cx, cy + dy*len);
-    ctx.stroke();
-  });
-  ctx.restore();
-}
+// ── AR Engine ──────────────────────────────────────
+async function startAR() {
+  $('setup').style.display = 'none';
+  $('ar-view').style.display = 'block';
+  $('year-stamp').textContent = S.year;
 
-// ─── Main render loop ──────────────────────────────────
-function startRenderLoop(canvas, videoOrNull) {
+  // Camera
+  try {
+    S.stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
+      audio: false
+    });
+    $('cam').srcObject = S.stream;
+    await $('cam').play();
+  } catch { toast('Brak kamery — tryb demo'); }
+
+  // GPS
+  if (navigator.geolocation) {
+    navigator.geolocation.watchPosition(pos => {
+      S.userLat = pos.coords.latitude;
+      S.userLon = pos.coords.longitude;
+      const dist = distanceTo(S.userLat, S.userLon, S.targetLat, S.targetLon);
+      $('pill-gps').textContent = 'GPS ✓';
+      $('pill-gps').classList.add('active');
+      $('pill-dist').textContent = dist < 1000 ? `${Math.round(dist)} m` : `${(dist/1000).toFixed(1)} km`;
+    }, null, { enableHighAccuracy: true, maximumAge: 1500 });
+  }
+
+  // Orientation
+  window.addEventListener('deviceorientation', e => {
+    // ── Heading (compass) ──
+    let raw;
+    if (e.webkitCompassHeading != null) {
+      raw = e.webkitCompassHeading; // iOS: 0=North, clockwise, already corrected
+    } else if (e.absolute && e.alpha != null) {
+      raw = (360 - e.alpha + 360) % 360; // Android absolute
+    } else if (e.alpha != null) {
+      raw = (360 - e.alpha + 360) % 360; // Android relative (less accurate)
+    } else return;
+
+    S.heading = smoothAngle(S._headingBuf, raw, 10);
+
+    // ── Pitch (tilt) ──
+    // beta: 0 = flat on table, 90 = standing upright (portrait, screen facing you)
+    // When holding phone horizontally like a camera: beta ≈ 60-80°
+    // Tilting up (pointing at sky): beta DECREASES toward 0
+    // Tilting down (pointing at ground): beta INCREASES toward 90+
+    // So: looking UP = lower beta = we should shift image UP on screen
+    if (e.beta != null) {
+      S.pitch = smoothLinear(S._pitchBuf, e.beta, 8);
+    }
+    if (e.gamma != null) S.roll = e.gamma;
+
+    $('pill-compass').textContent = `${Math.round(S.heading)}°`;
+    $('pill-compass').classList.add('active');
+  }, true);
+
+  // Canvas
+  const canvas = $('ar-canvas');
   const ctx = canvas.getContext('2d');
-
-  function resize() {
-    canvas.width  = window.innerWidth;
-    canvas.height = window.innerHeight;
-  }
+  function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
   resize();
   window.addEventListener('resize', resize);
 
-  function frame() {
-    animFrame = requestAnimationFrame(frame);
-    if (animPaused) return;
-
+  function render() {
+    S.animFrame = requestAnimationFrame(render);
+    if (S.frozen) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (!S.photoImg.complete || !S.photoImg.naturalWidth) return;
+    if (S.userLat === null) return;
 
-    // ── demo background when no real camera ──
-    if (!videoOrNull) {
-      const bg = ctx.createLinearGradient(0, 0, 0, canvas.height);
-      bg.addColorStop(0, '#1a2a1a'); bg.addColorStop(1, '#0a0a0f');
-      ctx.fillStyle = bg; ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = 'rgba(40,60,40,.55)';
-      ctx.fillRect(0, canvas.height * .58, canvas.width, canvas.height * .42);
-    }
+    // ── Where is the target relative to us? ──
+    const bearingToTarget = bearingTo(S.userLat, S.userLon, S.targetLat, S.targetLon);
+    const correctedHeading = (S.heading + S.compassOffset + 360) % 360;
 
-    if (!overlayImg.complete || !overlayImg.naturalWidth) return;
+    // Horizontal: positive = target is to the RIGHT of our heading
+    const horizDelta = angleDiff(bearingToTarget, correctedHeading);
 
-    const xShift = headingShift();
-    const imgW = canvas.width * 0.92;
-    const imgH = imgW * (overlayImg.naturalHeight / overlayImg.naturalWidth);
-    const x = (canvas.width - imgW) / 2 + xShift * 64;
-    const y = (canvas.height - imgH) / 2;
+    // Vertical: how much we're tilted vs. the "neutral camera hold" angle
+    // pitch < pitchNeutral → tilting up → target moves UP → negative vertDelta
+    // pitch > pitchNeutral → tilting down → target moves DOWN → positive vertDelta
+    const vertDelta = S.pitchNeutral - S.pitch; // FIXED: inverted sign
 
-    // draw photo
+    // Pixels per degree
+    const pxPerDegH = canvas.width  / S.fovH;
+    const pxPerDegV = canvas.height / S.fovV;
+
+    // Center of overlay on screen
+    const cx = canvas.width  / 2 + horizDelta * pxPerDegH;
+    const cy = canvas.height / 2 + vertDelta  * pxPerDegV;
+
+    // Distance scale
+    const dist = distanceTo(S.userLat, S.userLon, S.targetLat, S.targetLon);
+    const refDist = 25;
+    const distScale = Math.min(1.3, refDist / Math.max(dist, 0.5));
+
+    const baseW = canvas.width * S.sizeFactor;
+    const aspect = S.photoImg.naturalHeight / S.photoImg.naturalWidth;
+    const imgW = baseW * distScale;
+    const imgH = imgW * aspect;
+
+    const x = cx - imgW / 2;
+    const y = cy - imgH / 2;
+
+    // Visibility fade
+    const horizAngle = Math.abs(horizDelta);
+    const vertAngle  = Math.abs(vertDelta);
+    const hFade = Math.max(0, 1 - horizAngle / (S.fovH * 0.52));
+    const vFade = Math.max(0, 1 - vertAngle  / (S.fovV * 0.65));
+    const visibility = hFade * vFade;
+
+    $('aim-ring').classList.toggle('on-target', visibility > 0.75);
+
+    // Update debug pill
+    $('pill-delta').textContent = `Δ${horizDelta.toFixed(1)}° ${vertDelta.toFixed(1)}°`;
+
+    if (visibility < 0.01) return;
+    const alpha = S.opacity * visibility;
+
     ctx.save();
-    ctx.globalAlpha = overlayOpacity;
-    ctx.drawImage(overlayImg, x, y, imgW, imgH);
 
-    // sepia color blend
+    // Photo
+    ctx.globalAlpha = alpha;
+    ctx.drawImage(S.photoImg, x, y, imgW, imgH);
+
+    // Sepia
     ctx.globalCompositeOperation = 'color';
-    ctx.globalAlpha = overlayOpacity * 0.4;
-    ctx.fillStyle = '#b07830';
+    ctx.globalAlpha = alpha * 0.3;
+    ctx.fillStyle = '#9e6010';
     ctx.fillRect(x, y, imgW, imgH);
 
-    // vignette
+    // Vignette
     ctx.globalCompositeOperation = 'source-over';
-    const vig = ctx.createRadialGradient(
-      canvas.width/2, canvas.height/2, canvas.height * .12,
-      canvas.width/2, canvas.height/2, canvas.height * .72
-    );
+    const vig = ctx.createRadialGradient(cx, cy, imgH * 0.1, cx, cy, imgH * 0.72);
     vig.addColorStop(0, 'rgba(0,0,0,0)');
-    vig.addColorStop(1, 'rgba(0,0,0,0.5)');
-    ctx.globalAlpha = overlayOpacity * 0.45;
+    vig.addColorStop(1, 'rgba(0,0,0,0.45)');
+    ctx.globalAlpha = alpha * 0.45;
     ctx.fillStyle = vig;
     ctx.fillRect(x, y, imgW, imgH);
 
-    // dashed border
-    ctx.globalAlpha = overlayOpacity * 0.6;
+    // Border + corners
+    ctx.globalAlpha = alpha * 0.65;
     ctx.strokeStyle = '#c8f533';
     ctx.lineWidth = 1.5;
     ctx.setLineDash([8, 6]);
-    ctx.strokeRect(x + 2, y + 2, imgW - 4, imgH - 4);
+    ctx.strokeRect(x + 1, y + 1, imgW - 2, imgH - 2);
     ctx.setLineDash([]);
+
+    ctx.globalAlpha = alpha * 0.9;
+    ctx.lineWidth = 2.5;
+    const cl = 22;
+    [[x,y,1,1],[x+imgW,y,-1,1],[x,y+imgH,1,-1],[x+imgW,y+imgH,-1,-1]].forEach(([px,py,dx,dy]) => {
+      ctx.beginPath();
+      ctx.moveTo(px+dx*cl, py); ctx.lineTo(px, py); ctx.lineTo(px, py+dy*cl);
+      ctx.stroke();
+    });
     ctx.restore();
 
-    drawCorners(ctx, x, y, imgW, imgH);
-
-    // demo label
-    if (!videoOrNull) {
-      ctx.save();
-      ctx.globalAlpha = .55;
-      ctx.fillStyle = '#c8f533';
-      ctx.font = '11px Space Mono, monospace';
-      ctx.fillText('TRYB DEMO · brak kamery', 16, canvas.height - 22);
-      ctx.restore();
-    }
+    // Debug bar
+    ctx.save();
+    ctx.globalAlpha = 0.48;
+    ctx.fillStyle = '#c8f533';
+    ctx.font = '10px Space Mono,monospace';
+    ctx.fillText(
+      `kurs:${Math.round(correctedHeading)}° → cel:${Math.round(bearingToTarget)}°  Δh:${horizDelta.toFixed(1)}° Δv:${vertDelta.toFixed(1)}°  β:${S.pitch.toFixed(0)}°  dist:${Math.round(dist)}m`,
+      12, canvas.height - 14
+    );
+    ctx.restore();
   }
-  frame();
+
+  render();
+  toast('📍 Skieruj telefon na zaznaczone miejsce');
 }
 
-// ─── Launch AR ─────────────────────────────────────────
-async function launchAR() {
-  $('fallback-preview').style.display = 'block';
-  const video  = $('cam-video');
-  const canvas = $('fallback-overlay');
+// ── Calibration UI ─────────────────────────────────
+$('calib-btn').addEventListener('click', () => {
+  $('calib-panel').style.display = 'flex';
+});
+$('calib-close').addEventListener('click', () => {
+  $('calib-panel').style.display = 'none';
+});
 
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
-      audio: false
-    });
-    video.srcObject = stream;
-    await video.play();
-    $('status-text').textContent = 'kamera aktywna';
-    startRenderLoop(canvas, video);
-  } catch {
-    toast('Brak dostępu do kamery — tryb demo');
-    $('status-text').textContent = 'tryb demo';
-    startRenderLoop(canvas, null);
-  }
+function calibInput(id, valId, key, suffix='°') {
+  const el = $(id), lbl = $(valId);
+  el.addEventListener('input', () => {
+    S[key] = parseFloat(el.value);
+    lbl.textContent = el.value + suffix;
+  });
 }
+calibInput('cal-fov-h',   'cal-fov-h-val',   'fovH');
+calibInput('cal-fov-v',   'cal-fov-v-val',   'fovV');
+calibInput('cal-compass', 'cal-compass-val', 'compassOffset');
+calibInput('cal-pitch',   'cal-pitch-val',   'pitchNeutral');
 
-// ─── Start button ──────────────────────────────────────
-$('start-btn').addEventListener('click', async () => {
-  if (!photoDataURL) return;
-  userBearing = parseFloat($('photo-bearing').value) || 0;
-  const year  = $('photo-year').value;
+// ── Sliders ────────────────────────────────────────
+$('opacity-sl').addEventListener('input', e => S.opacity = e.target.value / 100);
+$('size-sl').addEventListener('input', e => S.sizeFactor = e.target.value / 100);
 
-  $('landing').style.display = 'none';
-  $('hud').style.display = 'block';
-  $('year-badge').textContent = year || '????';
-
-  startGPS();
-  startCompass();
-  await launchAR();
-
-  toast('Portal AR aktywny · skieruj aparat na miejsce ze zdjęcia');
+// ── Buttons ────────────────────────────────────────
+$('freeze-btn').addEventListener('click', () => {
+  S.frozen = !S.frozen;
+  $('freeze-btn').textContent = S.frozen ? '▶ Wznów' : '⏸ Zamróź';
+  toast(S.frozen ? 'Klatka zamrożona' : 'Wznowiono');
 });
 
-// ─── Opacity slider ────────────────────────────────────
-$('opacity-slider').addEventListener('input', e => {
-  overlayOpacity = parseInt(e.target.value) / 100;
-});
-
-// ─── Pause / resume ────────────────────────────────────
-$('toggle-btn').addEventListener('click', () => {
-  animPaused = !animPaused;
-  $('toggle-btn').textContent = animPaused ? '▶ Wznów' : '⏸ Wstrzymaj';
-  toast(animPaused ? 'Klatka zamrożona' : 'Wznowiono');
-});
-
-// ─── Screenshot ────────────────────────────────────────
-$('screenshot-btn').addEventListener('click', () => {
-  const video   = $('cam-video');
-  const overlay = $('fallback-overlay');
+$('snap-btn').addEventListener('click', () => {
+  const cam = $('cam'), overlay = $('ar-canvas');
   const out = document.createElement('canvas');
-  out.width  = overlay.width;
-  out.height = overlay.height;
+  out.width = overlay.width; out.height = overlay.height;
   const ctx = out.getContext('2d');
-  if (video.srcObject) ctx.drawImage(video, 0, 0, out.width, out.height);
+  if (cam.srcObject) ctx.drawImage(cam, 0, 0, out.width, out.height);
   ctx.drawImage(overlay, 0, 0);
   out.toBlob(blob => {
     const url = URL.createObjectURL(blob);
@@ -770,28 +596,16 @@ $('screenshot-btn').addEventListener('click', () => {
   }, 'image/jpeg', 0.92);
 });
 
-// ─── Back ──────────────────────────────────────────────
-$('back-btn').addEventListener('click', () => {
-  stream?.getTracks().forEach(t => t.stop()); stream = null;
-  cancelAnimationFrame(animFrame); animFrame = null;
-  $('fallback-preview').style.display = 'none';
-  $('hud').style.display = 'none';
-  $('landing').style.display = 'flex';
-  animPaused = false;
-  $('toggle-btn').textContent = '⏸ Wstrzymaj';
+$('exit-btn').addEventListener('click', () => {
+  S.stream?.getTracks().forEach(t => t.stop());
+  cancelAnimationFrame(S.animFrame);
+  $('ar-view').style.display = 'none';
+  $('setup').style.display = 'flex';
+  S.frozen = false;
+  S._headingBuf = [];
+  S._pitchBuf = [];
+  $('freeze-btn').textContent = '⏸ Zamróź';
 });
-
-// ─── PWA Service Worker (blob — no separate file needed) ─
-if ('serviceWorker' in navigator) {
-  const sw = `
-    const C='ar-portal-v2';
-    self.addEventListener('install',e=>e.waitUntil(caches.open(C).then(c=>c.addAll(['./',]))));
-    self.addEventListener('fetch',e=>e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request))));
-  `;
-  navigator.serviceWorker.register(
-    URL.createObjectURL(new Blob([sw], { type: 'application/javascript' }))
-  ).catch(() => {});
-}
 </script>
 </body>
 </html>
