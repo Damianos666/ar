@@ -457,7 +457,7 @@ async function startAR() {
     // Vertical: how much we're tilted vs. the "neutral camera hold" angle
     // pitch < pitchNeutral → tilting up → target moves UP → negative vertDelta
     // pitch > pitchNeutral → tilting down → target moves DOWN → positive vertDelta
-    const vertDelta = S.pitchNeutral - S.pitch; // FIXED: inverted sign
+    const vertDelta = S.pitch - S.pitchNeutral; // FIXED: inverted sign
 
     // Pixels per degree
     const pxPerDegH = canvas.width  / S.fovH;
