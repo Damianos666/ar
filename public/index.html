@@ -13,7 +13,7 @@
   * { margin:0; padding:0; box-sizing:border-box; }
   body { background:var(--ink); color:var(--paper); font-family:'Space Mono',monospace; overflow:hidden; height:100dvh; width:100vw; touch-action:none; }
 
-  /* ── SETUP ── */
+  /* SETUP */
   #setup { position:fixed; inset:0; background:var(--ink); display:flex; flex-direction:column; align-items:center; justify-content:flex-start; z-index:100; padding:1.5rem; gap:1rem; overflow-y:auto; }
   .logo { font-family:'Syne',sans-serif; font-size:1.6rem; font-weight:800; color:var(--acid); letter-spacing:-.02em; margin-top:.5rem; }
   .logo span { color:var(--paper); }
@@ -39,12 +39,14 @@
   #launch-btn:disabled { opacity:.3; cursor:not-allowed; }
   #launch-btn:not(:disabled):hover { transform:translateY(-2px); box-shadow:0 8px 30px rgba(200,245,51,.3); }
 
-  /* ── AR ── */
+  /* AR */
   #ar-view { display:none; position:fixed; inset:0; z-index:10; }
   #cam { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
   #ar-canvas { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
   .scanlines { position:absolute; inset:0; background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.04) 2px,rgba(0,0,0,.04) 4px); pointer-events:none; z-index:2; }
   #hud { position:absolute; inset:0; z-index:5; pointer-events:none; }
+
+  /* Top bar */
   .hud-top { display:flex; justify-content:space-between; align-items:flex-start; padding:.8rem 1rem; background:linear-gradient(to bottom,rgba(0,0,0,.72) 0%,transparent 100%); }
   .hud-logo { font-family:'Syne',sans-serif; font-weight:800; font-size:.85rem; color:var(--acid); }
   .hud-info { display:flex; flex-direction:column; align-items:flex-end; gap:.2rem; }
@@ -53,34 +55,82 @@
   .year-stamp { position:absolute; top:4rem; left:1rem; background:var(--rust); color:var(--paper); font-family:'Syne',sans-serif; font-weight:700; font-size:.85rem; padding:.28rem .75rem; border-radius:3px; }
 
   /* Crosshair */
-  .crosshair { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:36px; height:36px; opacity:.35; }
+  .crosshair { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:36px; height:36px; opacity:.3; }
   .crosshair::before,.crosshair::after { content:''; position:absolute; background:var(--acid); }
   .crosshair::before { width:1px; height:100%; left:50%; top:0; }
   .crosshair::after { height:1px; width:100%; top:50%; left:0; }
 
-  /* Aim ring */
+  /* Aim ring — shows when on target */
   #aim-ring { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:80px; height:80px; border-radius:50%; border:2px solid transparent; transition:border-color .2s,box-shadow .2s; pointer-events:none; }
   #aim-ring.on-target { border-color:var(--acid); box-shadow:0 0 22px rgba(200,245,51,.5); }
 
-  /* Calibration overlay */
-  #calib-panel {
-    position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
-    background:rgba(10,10,15,.92); backdrop-filter:blur(12px);
-    border:1px solid rgba(200,245,51,.4); border-radius:10px;
-    padding:1.5rem; width:calc(100% - 2rem); max-width:340px;
-    display:none; flex-direction:column; gap:1rem; pointer-events:all;
-    z-index:20;
+  /* ══ NAVIGATOR ARROW ══ */
+  #navigator {
+    position: absolute;
+    /* Center of screen */
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 140px; height: 140px;
+    pointer-events: none;
+    transition: opacity .3s;
   }
-  #calib-panel h3 { font-family:'Syne',sans-serif; font-size:1rem; color:var(--acid); }
-  #calib-panel p { font-size:.7rem; color:var(--silver); line-height:1.6; }
-  .calib-row { display:flex; align-items:center; gap:.75rem; }
-  .calib-lbl { font-size:.62rem; color:var(--silver); min-width:70px; text-transform:uppercase; letter-spacing:.08em; }
-  .calib-val { font-size:.9rem; color:var(--acid); font-weight:700; min-width:50px; }
+  #navigator.hidden { opacity: 0; }
+
+  /* Outer ring of navigator */
+  #nav-ring {
+    position: absolute; inset: 0;
+    border-radius: 50%;
+    border: 1.5px solid rgba(200,245,51,.25);
+    background: rgba(10,10,15,.35);
+    backdrop-filter: blur(4px);
+  }
+
+  /* Arrow SVG — rotates to point at target */
+  #nav-arrow-wrap {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: transform .15s ease-out;
+  }
+
+  /* Distance label inside ring */
+  #nav-dist {
+    position: absolute; bottom: 28px; left: 0; right: 0;
+    text-align: center;
+    font-size: .58rem;
+    letter-spacing: .08em;
+    color: var(--acid);
+    text-transform: uppercase;
+  }
+
+  /* "CEL OSIĄGNIĘTY" pulse when on target */
+  #nav-found {
+    position: absolute; inset: 0;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(200,245,51,.18) 0%, transparent 70%);
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; transition: opacity .3s;
+    font-size: .6rem; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--acid);
+    text-align: center; flex-direction: column; gap: .2rem;
+  }
+  #nav-found.show { opacity: 1; animation: foundPulse 1.2s ease infinite; }
+  @keyframes foundPulse {
+    0%,100% { box-shadow: 0 0 0 0 rgba(200,245,51,.3); }
+    50% { box-shadow: 0 0 0 18px rgba(200,245,51,0); }
+  }
+
+  /* Calibration */
+  #calib-panel { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:rgba(10,10,15,.93); backdrop-filter:blur(12px); border:1px solid rgba(200,245,51,.4); border-radius:10px; padding:1.4rem; width:calc(100% - 2rem); max-width:330px; display:none; flex-direction:column; gap:.9rem; pointer-events:all; z-index:20; }
+  #calib-panel h3 { font-family:'Syne',sans-serif; font-size:.95rem; color:var(--acid); }
+  #calib-panel p { font-size:.67rem; color:var(--silver); line-height:1.6; }
+  .calib-row { display:flex; align-items:center; gap:.7rem; }
+  .calib-lbl { font-size:.6rem; color:var(--silver); min-width:68px; text-transform:uppercase; letter-spacing:.07em; }
+  .calib-val { font-size:.88rem; color:var(--acid); font-weight:700; min-width:46px; text-align:right; }
   input[type=range] { flex:1; -webkit-appearance:none; height:3px; background:rgba(255,255,255,.2); border-radius:2px; outline:none; }
   input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:20px; height:20px; border-radius:50%; background:var(--acid); cursor:pointer; }
-  .calib-close { background:var(--acid); color:var(--ink); font-family:'Syne',sans-serif; font-weight:700; font-size:.85rem; border:none; padding:.65rem; border-radius:5px; cursor:pointer; }
+  .calib-close { background:var(--acid); color:var(--ink); font-family:'Syne',sans-serif; font-weight:700; font-size:.85rem; border:none; padding:.6rem; border-radius:5px; cursor:pointer; }
 
-  /* Bottom controls */
+  /* Bottom */
   .hud-bottom { position:absolute; bottom:0; left:0; right:0; padding:.9rem 1rem 1.8rem; background:linear-gradient(to top,rgba(0,0,0,.82) 0%,transparent 100%); display:flex; flex-direction:column; gap:.65rem; pointer-events:all; }
   .slider-row { display:flex; align-items:center; gap:.7rem; }
   .slider-lbl { font-size:.58rem; letter-spacing:.08em; text-transform:uppercase; color:var(--silver); min-width:75px; }
@@ -127,9 +177,7 @@
 
   <div class="card">
     <div class="card-title">📍 Lokalizacja obiektu</div>
-    <p class="hint">
-      GPS miejsca widocznego na zdjęciu. Skopiuj z Google Maps — kliknij prawym na mapie → "Co tu jest?".
-    </p>
+    <p class="hint">GPS miejsca widocznego na zdjęciu. Skopiuj z Google Maps — kliknij prawym na mapie.</p>
     <button class="gps-btn" id="use-current-gps">📡 Użyj mojej aktualnej pozycji</button>
     <div class="field-row">
       <div class="field">
@@ -142,7 +190,7 @@
       </div>
     </div>
     <div class="field">
-      <label>Kierunek zdjęcia — azymut ° (opcjonalnie)</label>
+      <label>Kierunek zdjęcia — azymut °</label>
       <input type="number" id="target-bearing" placeholder="0=Płn · 90=Wsch · 180=Płd" min="0" max="360" value="0">
     </div>
   </div>
@@ -171,7 +219,6 @@
         <div class="info-pill" id="pill-gps">GPS: —</div>
         <div class="info-pill" id="pill-compass">Kompas: —</div>
         <div class="info-pill" id="pill-dist">Dystans: —</div>
-        <div class="info-pill" id="pill-delta">Δ: —</div>
       </div>
     </div>
 
@@ -179,10 +226,28 @@
     <div class="crosshair"></div>
     <div id="aim-ring"></div>
 
+    <!-- ══ NAVIGATOR ══ -->
+    <div id="navigator">
+      <div id="nav-ring"></div>
+      <div id="nav-arrow-wrap">
+        <svg id="nav-svg" width="54" height="54" viewBox="0 0 54 54" fill="none">
+          <!-- Arrow body -->
+          <polygon id="nav-arrow" points="27,6 40,42 27,34 14,42" fill="#c8f533" opacity="0.95"/>
+          <!-- Center dot -->
+          <circle cx="27" cy="27" r="3.5" fill="rgba(200,245,51,0.4)"/>
+        </svg>
+      </div>
+      <div id="nav-dist">— m</div>
+      <div id="nav-found">
+        <span style="font-size:1.4rem">✓</span>
+        <span>Cel!</span>
+      </div>
+    </div>
+
     <!-- Calibration panel -->
     <div id="calib-panel">
       <h3>🎯 Kalibracja</h3>
-      <p>Dostosuj jeśli obraz jest przesunięty. Stań naprzeciwko celu, wyceluj crosshair i przesuń suwaki tak żeby obraz trafił w środek.</p>
+      <p>Stań naprzeciwko celu i przesuń suwaki żeby obraz trafił w crosshair.</p>
       <div class="calib-row">
         <span class="calib-lbl">FOV horiz.</span>
         <input type="range" id="cal-fov-h" min="30" max="100" value="65">
@@ -228,116 +293,113 @@
 <div id="toast"></div>
 
 <script>
-// ══════════════════════════════════════════════
-//  AR TIME PORTAL v3 — precision engine
-//  Fixes: pitch direction, smoothing, FOV calib
-// ══════════════════════════════════════════════
-
 const $ = id => document.getElementById(id);
 
-// ── State ──────────────────────────────────────
 const S = {
   photoImg: new Image(),
   year: '????',
-  targetLat: null, targetLon: null,
-  targetBearing: 0,
-
-  // Live sensor (smoothed)
+  targetLat: null, targetLon: null, targetBearing: 0,
   userLat: null, userLon: null,
-  heading: 0,   // smoothed compass azimuth
-  pitch: 70,    // smoothed beta (phone tilt)
-  roll: 0,      // gamma
-
-  // Raw sensor buffers for smoothing
-  _headingBuf: [],
-  _pitchBuf: [],
-
-  // Calibration
-  fovH: 65,       // horizontal FOV degrees
-  fovV: 50,       // vertical FOV degrees
-  compassOffset: 0, // manual compass correction
-  pitchNeutral: 70, // beta angle when holding phone "forward"
-
-  // Render
-  opacity: 0.75,
-  sizeFactor: 0.70,
-  frozen: false,
-  stream: null,
-  animFrame: null,
+  heading: 0, pitch: 70, roll: 0,
+  _headingBuf: [], _pitchBuf: [],
+  fovH: 65, fovV: 50,
+  compassOffset: 0, pitchNeutral: 70,
+  opacity: 0.75, sizeFactor: 0.70,
+  frozen: false, stream: null, animFrame: null,
 };
 
-// ── Smoothing ───────────────────────────────────
-// Circular mean for angles (handles 0/360 wraparound)
+// ── Smoothing ──────────────────────────────────
 function circularMean(angles) {
   let sx = 0, sy = 0;
-  for (const a of angles) {
-    sx += Math.cos(a * Math.PI / 180);
-    sy += Math.sin(a * Math.PI / 180);
+  for (const a of angles) { sx += Math.cos(a*Math.PI/180); sy += Math.sin(a*Math.PI/180); }
+  return ((Math.atan2(sy/angles.length, sx/angles.length)*180/Math.PI)+360)%360;
+}
+function smoothAngle(buf, val, size=10) { buf.push(val); if(buf.length>size)buf.shift(); return circularMean(buf); }
+function smoothLinear(buf, val, size=8) { buf.push(val); if(buf.length>size)buf.shift(); return buf.reduce((a,b)=>a+b,0)/buf.length; }
+
+// ── Geo ────────────────────────────────────────
+function distanceTo(lat1,lon1,lat2,lon2) {
+  const R=6371000, dLat=(lat2-lat1)*Math.PI/180, dLon=(lon2-lon1)*Math.PI/180;
+  const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+function bearingTo(lat1,lon1,lat2,lon2) {
+  const dLon=(lon2-lon1)*Math.PI/180;
+  const y=Math.sin(dLon)*Math.cos(lat2*Math.PI/180);
+  const x=Math.cos(lat1*Math.PI/180)*Math.sin(lat2*Math.PI/180)-Math.sin(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.cos(dLon);
+  return((Math.atan2(y,x)*180/Math.PI)+360)%360;
+}
+function angleDiff(target,current) { return((target-current+540)%360)-180; }
+
+// ── Toast ──────────────────────────────────────
+function toast(msg,ms=2800) {
+  const t=$('toast'); t.textContent=msg; t.classList.add('show');
+  clearTimeout(t._tid); t._tid=setTimeout(()=>t.classList.remove('show'),ms);
+}
+
+// ── Navigator arrow ────────────────────────────
+const navEl       = $('navigator');
+const navArrow    = $('nav-arrow-wrap');
+const navDist     = $('nav-dist');
+const navFound    = $('nav-found');
+const aimRing     = $('aim-ring');
+
+function updateNavigator(horizDelta, vertDelta, distM, onTarget) {
+  if (onTarget) {
+    // On target — hide arrow, show found indicator
+    navEl.classList.add('hidden');
+    navFound.classList.add('show');
+    aimRing.classList.add('on-target');
+    return;
   }
-  return ((Math.atan2(sy / angles.length, sx / angles.length) * 180 / Math.PI) + 360) % 360;
+
+  navEl.classList.remove('hidden');
+  navFound.classList.remove('show');
+  aimRing.classList.remove('on-target');
+
+  // Compute 2D angle from screen center toward target
+  // horizDelta: positive = target is to the RIGHT → rotate arrow RIGHT
+  // vertDelta:  positive = target is UP → rotate arrow UP
+  // atan2(x, -y) because SVG arrow points UP by default (y=0 is top)
+  const angleRad = Math.atan2(horizDelta, -vertDelta);
+  const angleDeg = angleRad * 180 / Math.PI;
+
+  navArrow.style.transform = `rotate(${angleDeg}deg)`;
+
+  // Distance label
+  navDist.textContent = distM < 1000
+    ? `${Math.round(distM)} m`
+    : `${(distM/1000).toFixed(1)} km`;
+
+  // Pulse opacity based on how "warm" we are (0=cold, 1=hot)
+  const totalDelta = Math.sqrt(horizDelta**2 + vertDelta**2);
+  const warmth = Math.max(0, 1 - totalDelta / 45); // within 45° = warming up
+  const arrowOpacity = 0.4 + warmth * 0.6;
+  navEl.style.opacity = arrowOpacity;
+
+  // Arrow color shifts: far=silver → warm=acid green
+  const arrowEl = $('nav-arrow');
+  if (warmth > 0.7) {
+    arrowEl.setAttribute('fill', '#c8f533');
+  } else if (warmth > 0.35) {
+    arrowEl.setAttribute('fill', '#8bc220');
+  } else {
+    arrowEl.setAttribute('fill', '#a8a8b8');
+  }
 }
 
-function smoothAngle(buf, val, size = 8) {
-  buf.push(val);
-  if (buf.length > size) buf.shift();
-  return circularMean(buf);
-}
-
-function smoothLinear(buf, val, size = 6) {
-  buf.push(val);
-  if (buf.length > size) buf.shift();
-  return buf.reduce((a, b) => a + b, 0) / buf.length;
-}
-
-// ── Geo math ────────────────────────────────────
-function distanceTo(lat1, lon1, lat2, lon2) {
-  const R = 6371000;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-}
-
-function bearingTo(lat1, lon1, lat2, lon2) {
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const y = Math.sin(dLon) * Math.cos(lat2 * Math.PI / 180);
-  const x = Math.cos(lat1*Math.PI/180)*Math.sin(lat2*Math.PI/180) - Math.sin(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.cos(dLon);
-  return ((Math.atan2(y, x) * 180 / Math.PI) + 360) % 360;
-}
-
-// Signed angle difference -180..+180
-function angleDiff(target, current) {
-  return ((target - current + 540) % 360) - 180;
-}
-
-// ── Toast ────────────────────────────────────────
-function toast(msg, ms = 2800) {
-  const t = $('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  clearTimeout(t._tid);
-  t._tid = setTimeout(() => t.classList.remove('show'), ms);
-}
-
-// ── Setup UI ─────────────────────────────────────
+// ── Setup ──────────────────────────────────────
 $('file-input').addEventListener('change', e => {
-  const file = e.target.files[0];
-  if (!file) return;
+  const file = e.target.files[0]; if (!file) return;
   const reader = new FileReader();
   reader.onload = ev => {
-    S.photoImg = new Image();
-    S.photoImg.src = ev.target.result;
-    $('thumb').src = ev.target.result;
-    $('thumb').style.display = 'block';
-    $('upload-zone').style.display = 'none';
-    checkReady();
+    S.photoImg = new Image(); S.photoImg.src = ev.target.result;
+    $('thumb').src = ev.target.result; $('thumb').style.display = 'block';
+    $('upload-zone').style.display = 'none'; checkReady();
   };
   reader.readAsDataURL(file);
 });
-
-function checkReady() {
-  $('launch-btn').disabled = !(S.photoImg.src && S.targetLat !== null && S.targetLon !== null);
-}
+function checkReady() { $('launch-btn').disabled = !(S.photoImg.src && S.targetLat !== null && S.targetLon !== null); }
 
 $('use-current-gps').addEventListener('click', () => {
   if (!navigator.geolocation) { toast('GPS niedostępny'); return; }
@@ -345,100 +407,70 @@ $('use-current-gps').addEventListener('click', () => {
   navigator.geolocation.getCurrentPosition(pos => {
     $('target-lat').value = pos.coords.latitude.toFixed(6);
     $('target-lon').value = pos.coords.longitude.toFixed(6);
-    S.targetLat = pos.coords.latitude;
-    S.targetLon = pos.coords.longitude;
+    S.targetLat = pos.coords.latitude; S.targetLon = pos.coords.longitude;
     toast(`📍 ${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`);
     checkReady();
   }, () => toast('Błąd GPS'), { enableHighAccuracy: true });
 });
 
-$('target-lat').addEventListener('input', e => { S.targetLat = parseFloat(e.target.value) || null; checkReady(); });
-$('target-lon').addEventListener('input', e => { S.targetLon = parseFloat(e.target.value) || null; checkReady(); });
+$('target-lat').addEventListener('input', e => { S.targetLat = parseFloat(e.target.value)||null; checkReady(); });
+$('target-lon').addEventListener('input', e => { S.targetLon = parseFloat(e.target.value)||null; checkReady(); });
 
-// ── Launch ────────────────────────────────────────
+// ── Launch ─────────────────────────────────────
 $('launch-btn').addEventListener('click', () => {
   S.year = $('year').value || '????';
-  S.targetBearing = parseFloat($('target-bearing').value) || 0;
-
+  S.targetBearing = parseFloat($('target-bearing').value)||0;
   if (typeof DeviceOrientationEvent?.requestPermission === 'function') {
-    $('perm-screen').style.display = 'flex';
-    return;
+    $('perm-screen').style.display = 'flex'; return;
   }
   startAR();
 });
-
 $('perm-btn').addEventListener('click', async () => {
   try {
     const res = await DeviceOrientationEvent.requestPermission();
     $('perm-screen').style.display = 'none';
-    if (res === 'granted') startAR();
-    else toast('Odmówiono dostępu do kompasu');
+    if (res === 'granted') startAR(); else toast('Odmówiono dostępu do kompasu');
   } catch { $('perm-screen').style.display = 'none'; startAR(); }
 });
 
-// ── AR Engine ──────────────────────────────────────
+// ── AR Engine ──────────────────────────────────
 async function startAR() {
   $('setup').style.display = 'none';
   $('ar-view').style.display = 'block';
   $('year-stamp').textContent = S.year;
 
-  // Camera
   try {
     S.stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
-      audio: false
+      video: { facingMode:'environment', width:{ideal:1920}, height:{ideal:1080} }, audio:false
     });
-    $('cam').srcObject = S.stream;
-    await $('cam').play();
+    $('cam').srcObject = S.stream; await $('cam').play();
   } catch { toast('Brak kamery — tryb demo'); }
 
-  // GPS
   if (navigator.geolocation) {
     navigator.geolocation.watchPosition(pos => {
-      S.userLat = pos.coords.latitude;
-      S.userLon = pos.coords.longitude;
-      const dist = distanceTo(S.userLat, S.userLon, S.targetLat, S.targetLon);
-      $('pill-gps').textContent = 'GPS ✓';
-      $('pill-gps').classList.add('active');
+      S.userLat = pos.coords.latitude; S.userLon = pos.coords.longitude;
+      const dist = distanceTo(S.userLat,S.userLon,S.targetLat,S.targetLon);
+      $('pill-gps').textContent = 'GPS ✓'; $('pill-gps').classList.add('active');
       $('pill-dist').textContent = dist < 1000 ? `${Math.round(dist)} m` : `${(dist/1000).toFixed(1)} km`;
-    }, null, { enableHighAccuracy: true, maximumAge: 1500 });
+    }, null, { enableHighAccuracy:true, maximumAge:1500 });
   }
 
-  // Orientation
   window.addEventListener('deviceorientation', e => {
-    // ── Heading (compass) ──
     let raw;
-    if (e.webkitCompassHeading != null) {
-      raw = e.webkitCompassHeading; // iOS: 0=North, clockwise, already corrected
-    } else if (e.absolute && e.alpha != null) {
-      raw = (360 - e.alpha + 360) % 360; // Android absolute
-    } else if (e.alpha != null) {
-      raw = (360 - e.alpha + 360) % 360; // Android relative (less accurate)
-    } else return;
-
+    if (e.webkitCompassHeading != null) raw = e.webkitCompassHeading;
+    else if (e.alpha != null) raw = (360 - e.alpha + 360) % 360;
+    else return;
     S.heading = smoothAngle(S._headingBuf, raw, 10);
-
-    // ── Pitch (tilt) ──
-    // beta: 0 = flat on table, 90 = standing upright (portrait, screen facing you)
-    // When holding phone horizontally like a camera: beta ≈ 60-80°
-    // Tilting up (pointing at sky): beta DECREASES toward 0
-    // Tilting down (pointing at ground): beta INCREASES toward 90+
-    // So: looking UP = lower beta = we should shift image UP on screen
-    if (e.beta != null) {
-      S.pitch = smoothLinear(S._pitchBuf, e.beta, 8);
-    }
+    if (e.beta != null) S.pitch = smoothLinear(S._pitchBuf, e.beta, 8);
     if (e.gamma != null) S.roll = e.gamma;
-
     $('pill-compass').textContent = `${Math.round(S.heading)}°`;
     $('pill-compass').classList.add('active');
   }, true);
 
-  // Canvas
   const canvas = $('ar-canvas');
   const ctx = canvas.getContext('2d');
   function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
-  resize();
-  window.addEventListener('resize', resize);
+  resize(); window.addEventListener('resize', resize);
 
   function render() {
     S.animFrame = requestAnimationFrame(render);
@@ -447,27 +479,20 @@ async function startAR() {
     if (!S.photoImg.complete || !S.photoImg.naturalWidth) return;
     if (S.userLat === null) return;
 
-    // ── Where is the target relative to us? ──
     const bearingToTarget = bearingTo(S.userLat, S.userLon, S.targetLat, S.targetLon);
     const correctedHeading = (S.heading + S.compassOffset + 360) % 360;
 
-    // Horizontal: positive = target is to the RIGHT of our heading
+    // Horizontal: positive = target to the RIGHT
     const horizDelta = angleDiff(bearingToTarget, correctedHeading);
+    // Vertical: positive = target is UP (above where we're pointing)
+    const vertDelta = S.pitch - S.pitchNeutral;
 
-    // Vertical: how much we're tilted vs. the "neutral camera hold" angle
-    // pitch < pitchNeutral → tilting up → target moves UP → negative vertDelta
-    // pitch > pitchNeutral → tilting down → target moves DOWN → positive vertDelta
-    const vertDelta = S.pitch - S.pitchNeutral; // FIXED: inverted sign
-
-    // Pixels per degree
     const pxPerDegH = canvas.width  / S.fovH;
     const pxPerDegV = canvas.height / S.fovV;
 
-    // Center of overlay on screen
     const cx = canvas.width  / 2 + horizDelta * pxPerDegH;
     const cy = canvas.height / 2 + vertDelta  * pxPerDegV;
 
-    // Distance scale
     const dist = distanceTo(S.userLat, S.userLon, S.targetLat, S.targetLon);
     const refDist = 25;
     const distScale = Math.min(1.3, refDist / Math.max(dist, 0.5));
@@ -476,134 +501,89 @@ async function startAR() {
     const aspect = S.photoImg.naturalHeight / S.photoImg.naturalWidth;
     const imgW = baseW * distScale;
     const imgH = imgW * aspect;
-
     const x = cx - imgW / 2;
     const y = cy - imgH / 2;
 
-    // Visibility fade
-    const horizAngle = Math.abs(horizDelta);
-    const vertAngle  = Math.abs(vertDelta);
-    const hFade = Math.max(0, 1 - horizAngle / (S.fovH * 0.52));
-    const vFade = Math.max(0, 1 - vertAngle  / (S.fovV * 0.65));
+    const hFade = Math.max(0, 1 - Math.abs(horizDelta) / (S.fovH * 0.52));
+    const vFade = Math.max(0, 1 - Math.abs(vertDelta)  / (S.fovV * 0.65));
     const visibility = hFade * vFade;
+    const onTarget = visibility > 0.75;
 
-    $('aim-ring').classList.toggle('on-target', visibility > 0.75);
-
-    // Update debug pill
-    $('pill-delta').textContent = `Δ${horizDelta.toFixed(1)}° ${vertDelta.toFixed(1)}°`;
+    // Update navigator arrow
+    updateNavigator(horizDelta, vertDelta, dist, onTarget);
 
     if (visibility < 0.01) return;
     const alpha = S.opacity * visibility;
 
     ctx.save();
-
-    // Photo
     ctx.globalAlpha = alpha;
     ctx.drawImage(S.photoImg, x, y, imgW, imgH);
 
-    // Sepia
     ctx.globalCompositeOperation = 'color';
     ctx.globalAlpha = alpha * 0.3;
     ctx.fillStyle = '#9e6010';
     ctx.fillRect(x, y, imgW, imgH);
 
-    // Vignette
     ctx.globalCompositeOperation = 'source-over';
-    const vig = ctx.createRadialGradient(cx, cy, imgH * 0.1, cx, cy, imgH * 0.72);
-    vig.addColorStop(0, 'rgba(0,0,0,0)');
-    vig.addColorStop(1, 'rgba(0,0,0,0.45)');
-    ctx.globalAlpha = alpha * 0.45;
-    ctx.fillStyle = vig;
-    ctx.fillRect(x, y, imgW, imgH);
+    const vig = ctx.createRadialGradient(cx,cy,imgH*0.1,cx,cy,imgH*0.72);
+    vig.addColorStop(0,'rgba(0,0,0,0)'); vig.addColorStop(1,'rgba(0,0,0,0.45)');
+    ctx.globalAlpha = alpha*0.45; ctx.fillStyle = vig; ctx.fillRect(x,y,imgW,imgH);
 
-    // Border + corners
-    ctx.globalAlpha = alpha * 0.65;
-    ctx.strokeStyle = '#c8f533';
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([8, 6]);
-    ctx.strokeRect(x + 1, y + 1, imgW - 2, imgH - 2);
-    ctx.setLineDash([]);
+    ctx.globalAlpha = alpha*0.65; ctx.strokeStyle = '#c8f533'; ctx.lineWidth = 1.5;
+    ctx.setLineDash([8,6]); ctx.strokeRect(x+1,y+1,imgW-2,imgH-2); ctx.setLineDash([]);
 
-    ctx.globalAlpha = alpha * 0.9;
-    ctx.lineWidth = 2.5;
+    ctx.globalAlpha = alpha*0.9; ctx.lineWidth = 2.5;
     const cl = 22;
-    [[x,y,1,1],[x+imgW,y,-1,1],[x,y+imgH,1,-1],[x+imgW,y+imgH,-1,-1]].forEach(([px,py,dx,dy]) => {
-      ctx.beginPath();
-      ctx.moveTo(px+dx*cl, py); ctx.lineTo(px, py); ctx.lineTo(px, py+dy*cl);
-      ctx.stroke();
+    [[x,y,1,1],[x+imgW,y,-1,1],[x,y+imgH,1,-1],[x+imgW,y+imgH,-1,-1]].forEach(([px,py,dx,dy])=>{
+      ctx.beginPath(); ctx.moveTo(px+dx*cl,py); ctx.lineTo(px,py); ctx.lineTo(px,py+dy*cl); ctx.stroke();
     });
-    ctx.restore();
-
-    // Debug bar
-    ctx.save();
-    ctx.globalAlpha = 0.48;
-    ctx.fillStyle = '#c8f533';
-    ctx.font = '10px Space Mono,monospace';
-    ctx.fillText(
-      `kurs:${Math.round(correctedHeading)}° → cel:${Math.round(bearingToTarget)}°  Δh:${horizDelta.toFixed(1)}° Δv:${vertDelta.toFixed(1)}°  β:${S.pitch.toFixed(0)}°  dist:${Math.round(dist)}m`,
-      12, canvas.height - 14
-    );
     ctx.restore();
   }
 
   render();
-  toast('📍 Skieruj telefon na zaznaczone miejsce');
+  toast('📍 Podążaj za strzałką aby znaleźć obraz');
 }
 
-// ── Calibration UI ─────────────────────────────────
-$('calib-btn').addEventListener('click', () => {
-  $('calib-panel').style.display = 'flex';
-});
-$('calib-close').addEventListener('click', () => {
-  $('calib-panel').style.display = 'none';
-});
-
-function calibInput(id, valId, key, suffix='°') {
-  const el = $(id), lbl = $(valId);
-  el.addEventListener('input', () => {
-    S[key] = parseFloat(el.value);
-    lbl.textContent = el.value + suffix;
-  });
+// ── Calibration ────────────────────────────────
+$('calib-btn').addEventListener('click', () => { $('calib-panel').style.display = 'flex'; });
+$('calib-close').addEventListener('click', () => { $('calib-panel').style.display = 'none'; });
+function calibInput(id, valId, key) {
+  const el=$(id), lbl=$(valId);
+  el.addEventListener('input', ()=>{ S[key]=parseFloat(el.value); lbl.textContent=el.value+'°'; });
 }
-calibInput('cal-fov-h',   'cal-fov-h-val',   'fovH');
-calibInput('cal-fov-v',   'cal-fov-v-val',   'fovV');
-calibInput('cal-compass', 'cal-compass-val', 'compassOffset');
-calibInput('cal-pitch',   'cal-pitch-val',   'pitchNeutral');
+calibInput('cal-fov-h','cal-fov-h-val','fovH');
+calibInput('cal-fov-v','cal-fov-v-val','fovV');
+calibInput('cal-compass','cal-compass-val','compassOffset');
+calibInput('cal-pitch','cal-pitch-val','pitchNeutral');
 
-// ── Sliders ────────────────────────────────────────
-$('opacity-sl').addEventListener('input', e => S.opacity = e.target.value / 100);
-$('size-sl').addEventListener('input', e => S.sizeFactor = e.target.value / 100);
-
-// ── Buttons ────────────────────────────────────────
+// ── Controls ───────────────────────────────────
+$('opacity-sl').addEventListener('input', e => S.opacity = e.target.value/100);
+$('size-sl').addEventListener('input', e => S.sizeFactor = e.target.value/100);
 $('freeze-btn').addEventListener('click', () => {
   S.frozen = !S.frozen;
   $('freeze-btn').textContent = S.frozen ? '▶ Wznów' : '⏸ Zamróź';
   toast(S.frozen ? 'Klatka zamrożona' : 'Wznowiono');
 });
-
 $('snap-btn').addEventListener('click', () => {
-  const cam = $('cam'), overlay = $('ar-canvas');
-  const out = document.createElement('canvas');
-  out.width = overlay.width; out.height = overlay.height;
-  const ctx = out.getContext('2d');
-  if (cam.srcObject) ctx.drawImage(cam, 0, 0, out.width, out.height);
-  ctx.drawImage(overlay, 0, 0);
-  out.toBlob(blob => {
-    const url = URL.createObjectURL(blob);
-    Object.assign(document.createElement('a'), { href: url, download: `ar-portal-${Date.now()}.jpg` }).click();
-    URL.revokeObjectURL(url);
-    toast('📸 Zapisano');
-  }, 'image/jpeg', 0.92);
+  const cam=$('cam'), overlay=$('ar-canvas');
+  const out=document.createElement('canvas'); out.width=overlay.width; out.height=overlay.height;
+  const ctx=out.getContext('2d');
+  if(cam.srcObject) ctx.drawImage(cam,0,0,out.width,out.height);
+  ctx.drawImage(overlay,0,0);
+  out.toBlob(blob=>{
+    const url=URL.createObjectURL(blob);
+    Object.assign(document.createElement('a'),{href:url,download:`ar-portal-${Date.now()}.jpg`}).click();
+    URL.revokeObjectURL(url); toast('📸 Zapisano');
+  },'image/jpeg',.92);
 });
-
 $('exit-btn').addEventListener('click', () => {
-  S.stream?.getTracks().forEach(t => t.stop());
+  S.stream?.getTracks().forEach(t=>t.stop());
   cancelAnimationFrame(S.animFrame);
   $('ar-view').style.display = 'none';
   $('setup').style.display = 'flex';
-  S.frozen = false;
-  S._headingBuf = [];
-  S._pitchBuf = [];
+  S.frozen = false; S._headingBuf=[]; S._pitchBuf=[];
+  navFound.classList.remove('show');
+  navEl.classList.remove('hidden');
   $('freeze-btn').textContent = '⏸ Zamróź';
 });
 </script>
